@@ -1,0 +1,6 @@
+audios
+__pycache__/
+venv
+.agents
+bench
+.env
