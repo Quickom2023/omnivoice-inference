@@ -44,6 +44,12 @@ BASE_DIR = Path(__file__).resolve().parent
 VOICES_DIR = BASE_DIR / "voices"
 MODEL_ID = "k2-fsa/OmniVoice"
 STREAM_TEXT_CHUNK_SIZE = 240
+# A terminator ends a sentence only before whitespace or the end of the text,
+# so the dots in "1.250.000", "3.5" and "TP.HCM" stay inside their sentence.
+SENTENCE_PATTERN = re.compile(r'\S.*?(?:[.!?]+["\']*(?=\s|$)|$)', re.DOTALL)
+# Where an over-long sentence may be cut: after , ; or : and a space, so a
+# decimal comma such as "12,5%" is never a cut point.
+CLAUSE_BREAK_PATTERN = re.compile(r"(?<=[,;:])\s+")
 WARMUP_TEXT = "Warm up."
 WARMUP_REF_AUDIO = "voices/af_heart.mp3"
 WARMUP_REF_TEXT = (
@@ -229,7 +235,7 @@ class OmniVoiceStreamingService:
         max_chars = max_chars or STREAM_TEXT_CHUNK_SIZE
         sentence_parts = [
             part.strip()
-            for part in re.findall(r'[^.!?]+[.!?]+(?:["\']+)?|[^.!?]+$', text)
+            for part in SENTENCE_PATTERN.findall(text)
             if part.strip()
         ]
 
@@ -260,8 +266,25 @@ class OmniVoiceStreamingService:
 
         return chunks
 
+    @classmethod
+    def _split_long_text_part(cls, text_part: str, max_chars: int) -> list[str]:
+        """Cut an over-long sentence into clauses, and clauses into words.
+
+        Each chunk is spoken as a finished utterance, so a cut belongs where a
+        reader would pause. The caller packs the pieces back up to max_chars,
+        which puts the cut at the last clause break that fits; a word boundary
+        is used only for a clause that is too long on its own.
+        """
+        if len(text_part) <= max_chars:
+            return [text_part]
+
+        pieces: list[str] = []
+        for clause in CLAUSE_BREAK_PATTERN.split(text_part):
+            pieces.extend(cls._split_words(clause, max_chars))
+        return pieces
+
     @staticmethod
-    def _split_long_text_part(text_part: str, max_chars: int) -> list[str]:
+    def _split_words(text_part: str, max_chars: int) -> list[str]:
         if len(text_part) <= max_chars:
             return [text_part]
 
