@@ -70,11 +70,11 @@ class StreamRequest(BaseModel):
     voice_id: str = "af_heart"
     language: str | None = None
     instruct: str | None = None
-    speed: float | None = 1.0
+    speed: float | None = 0.9
     num_step: int = Field(default=16, ge=1)
     denoise: bool = False
     postprocess_output: bool = False
-    chunk_chars: int = Field(default=120, ge=40, le=600)
+    chunk_chars: int = Field(default=240, ge=40, le=600)
 
 
 class SpeechRequest(BaseModel):
